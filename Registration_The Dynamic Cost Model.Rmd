@@ -1,0 +1,303 @@
+---
+title: "Open-Ended Registration: Modelling the Development of Preschoolers’ Fairness Judgements"
+author: "Peidong Mei"
+date: "15/03/2021"
+output: html_document
+---
+
+<style type="text/css">
+body, td {font-size: 14px;}
+code.r{font-size: 14px;}
+pre {font-size: 12px}
+</style>
+
+```{r setup, eval=T, echo=F, include=F}
+######## active package ########
+library(rmarkdown)
+library(loo)
+library(BayesFactor)
+library(ggpubr)
+library(oddsratio)
+library(WordR)
+library(R2wd)
+library(margins)
+library(apaText)
+library(apaTables)
+library(janitor)
+library(epiDisplay)
+library(AICcmodavg)
+library(MCMCglmm)
+library(tools)
+library(huxtable)
+library(backports)
+library(colorspace)
+library(LaplacesDemon)
+library(brms)
+library(foreign)
+library(nnet)
+library(corrplot)
+library(vcd)
+library(stats)
+library(gplots)
+library(ggrepel)
+library(spectacles)
+library(gmodels)
+library(tibble)
+library(ggmosaic)
+library(productplots)
+
+
+library(base)
+library(ggplot2)
+library(grid)
+library(reshape2)
+library(plyr)
+library(dplyr)
+#library(psych)
+library(rms)
+library(languageR)
+library(lme4)
+library(effects)
+library(car)
+library (sjPlot)
+library(haven)
+library(foreign)
+library(Hmisc)
+library(Rmisc)
+library(jtools)
+library(huxtable)
+library(kableExtra)
+library(ggstance)
+#library(ggtextures)
+library(magick)
+library(stargazer)
+
+load("C:/Users/meip/OneDrive/163/OneDrive/study 2-model/R-S2-Model/brms.RData")
+load("C:/Users/meip/OneDrive/163/OneDrive/study 2-model/R-S2-Model/Plots-colour.RData")
+```
+
+## 1 Study Information
+
+#### 1.1 Title 
+
+The Cost of Fairness: Its Dynamic Influence on Developmental Stage, Competition and Relation in British and Chinese Preschoolers’ Resource Allocations.
+
+#### 1.2 Authorship
+
+Peidong Mei & Charlie Lewis ^1^ 
+
+^1^ Lancaster University 
+
+#### 1.3 Description
+
+Several factors influence children’s resource distribution with a peer. This study compared 104 3-5-year-olds with 100 6-7-year-olds’ allocations of rewards within repeated trials in which three structural factors (age, gender and culture: the UK vs China) and three contextual manipulations (whether a trial involved competition, was with a friend or an unknown peer, or whether equal allocation incurred a cost) were examined together. Bayesian multinomial modelling revealed a complexity of interactions between the factors, with the cost of losing part of the reward central to these. A dynamic cost model is proposed to account for developmental processes in which children’s growing sense of fairness consists is balanced against influences which persuade the child to make selfish or selfless allocations.  
+
+#### 1.4 License
+Not applicable.
+
+#### 1.5 Tags 
+- Fairness
+- Resource Allocation
+- Cross-cultural Comparison 
+- Early Moral Development
+- Bayesian Multinomial Modelling
+- R package 'brms' 
+
+
+#### 1.6 Summary
+This project was registered after the study had been completed. We want to include a full picture of the complex modelling employed in the study.
+
+This registration involves the dataset description and the analysis process. In the dataset section, we provided detailed definitions of all variables with their specific levels. A descriptive summary of the dataset can also be found. The analysis process includes the R package we used for modelling, prior and baseline information, model construction and selection. Output summaries of all the models that we run were also included. 
+
+
+
+## 2 Dataset Description
+
+Our independent variables involoved three within subject variables: 
+- **`cost`**(<u>cost</u> vs cost-free)
+- **`competition`**(<u>competition</u> vs free play) 
+- **`relation`** (<u>friend</u> vs unknown peer) 
+
+We also collected three between subject variables: 
+- **`country`**(<u>China</u> vs UK)
+- **`age group`**(<u>Older</u> vs Younger)
+- **`gender`**(<u>Female</u> vs Male) 
+
+These are all binary and the former level in each bracket was used as the baseline in following models. 
+
+The dependent variable is **`allocation`** and has three levels: fair (equal split), unfair but advantageous (the distributor gets more) and unfair but disadvantageous (the distributor gets less). 
+
+
+```{r data summary, eval=T}
+summary(Subject)
+
+summary(Response)
+```
+
+## 3 Statistical Analysis 
+#### 3.1  Modelling Process
+We used [**`brm()`**](https://cran.r-project.org/web/packages/brms/brms.pdf), which is a Bayesian Regression Modelling approach using the platform *'Stan'* to explore the predictive effects of all six factors and their possible interactions on children's allocations.
+
+The *default priors* were used for two reasons:  first, model diagnosis indicated that the default priors were vague enough to avoid any substantial effects on the model and allowed the dataset to be converted well; secondly, to the best of our knowledge, there were no solid grounds from previous research on this topic available for us to consider more beneficial priors. 
+
+In addition, the response baseline used in the modelling, also known as the referential information to posterior distribution, was the ‘fair’ response from the allocation measurement (i.e. the child and recipeint both get the same amount). The ‘fair’ response was predominant (64.46%), compared to an ‘advantage-self’ response of 26.04% and a ‘disadvantage-self’ response of 9.5%. Taking the majority response as the baseline can favour the stability and accuracy of these models. 
+
+```{r reparameterize baseline, eval=F}
+######### reparameterize baseline #########
+R2long$age_group=relevel(R2long$age_group, ref='Older')
+R2long$country=relevel(R2long$country, ref='CN')
+R2long$gender=relevel(R2long$gender, ref='Female')
+R2long$cost=relevel(R2long$cost, ref='Cost')
+R2long$competition=relevel(R2long$competition, ref='Competition')
+R2long$relation=relevel(R2long$relation, ref='Friend')
+R2long$allocation<-factor(R2long$allocation,
+                          levels=c("Fair","UFad","UFdis"))
+```
+
+Six models were computed using the bottom-up approach: starting with the simplest (Model 1) with only the main effect of each variable, then the following models added interactions from 2-way (Model 2) up to  6-way (Model 6). All the models included a random intercept of subject to minimize any participant differences and were fitted using four chains, each with 2,000 iterations (1,000 warm up) under the family setting “categorical’. 
+
+```{r run brm, eval=F}
+##################### just 6 main effects
+brm2.1 <- brm(allocation~age_group+gender+country+competition+relation+cost
+              +(1|id),data=R2long,family=categorical,save_all_pars=T)
+
+##################### add all 6 effects with 2way interactions
+brm2.2 <- brm(allocation~(age_group+gender+country+competition+relation+cost)^2
+              +(1|id),data=R2long,family=categorical,save_all_pars=T)
+
+##################### add all 6 effects with 3way interactions
+brm2.3 <- brm(allocation~(age_group+gender+country+competition+relation+cost)^3
+              +(1|id),data=R2long,family=categorical,save_all_pars=T)
+
+##################### add all 6 effects with 4way interactions
+brm2.4 <- brm(allocation~(age_group+gender+country+competition+relation+cost)^4
+              +(1|id),data=R2long,family=categorical,save_all_pars=T)
+
+##################### add all 6 effects with 5way interactions
+brm2.5 <- brm(allocation~(age_group+gender+country+competition+relation+cost)^5
+              +(1|id),data=R2long,family=categorical)
+
+##################### add all 6 effects with 6way interactions
+brm2.6 <- brm(allocation~(age_group+gender+country+competition+relation+cost)^6
+              +(1|id),data=R2long,family=categorical,save_all_pars=T)
+```
+
+#### 3.2 Model outputs 
+
+As the Models involving five and six-way interactions *brm2.5* and *brm2.6* didnt converged, they were excluded from any further anylysis. 
+1: in model **`brm2.1`**, we add all 6 effects and their 2-way interactions.
+
+```{R model 2.1 summary, eval=T}
+summary(brm2.1) 
+```
+
+2: in model **`brm2.2`**, we add all 6 effects and their 2-way interactions.
+
+```{R model 2.2 summary, eval=T}
+summary(brm2.2)
+```
+
+3: in model **`brm2.3`**, we add all 6 effects and their 3-way interactions.
+
+```{R model 2.3 summary, eval=T}
+summary(brm2.3)
+```
+
+4: in model **`brm2.4`**, we add all 6 effects and their 4-way interactions.
+
+```{R model 2.4 summary, eval=T}
+summary(brm2.4)
+```
+
+5: in model **`brm2.5`**, we add all 6 effects and their 5-way interactions.
+
+```{R model 2.5 summary, eval=T}
+summary(brm2.5)
+```
+
+6: in model **`brm2.6`**, we add all 6 effects and their 6-way interactions.
+
+```{R model 2.6 summary, eval=T}
+summary(brm2.6)
+```
+
+
+#### 3.3 Model Selection  
+We then selected the best fitting model by using *Leave-One-Out Cross-Validation (LOO)*. THis approach compares models via approximate leave-one-out cross-validation. Since higher LOOIC values indicate better fit, we see that the model accounting for overdispersion fits substantially better. 
+
+```{R 2.1 comparision, eval=T}
+##LOO vaule for model 2.1
+loo(brm2.1)
+```
+
+
+```{R 2.2 comparision, eval=T}
+##LOO vaule for model 2.2
+loo(brm2.2)
+```
+
+
+```{R 2.3 comparision, eval=T}
+##LOO vaule for model 2.3
+loo(brm2.3)
+```
+
+
+```{R 2.4 comparision, eval=T}
+##LOO vaule for model 2.4
+loo(brm2.4)
+```
+
+```{R 2.5 comparision, eval=T}
+##LOO vaule for model 2.5
+loo(brm2.5)
+```
+
+```{R 2.6 comparision, eval=T}
+##LOO vaule for model 2.6
+loo(brm2.6)
+```
+
+The Bayesian criteria for convergence used ‘Rhat’ information. Rhat is the potential scale reduction factor on split chains and if a value is greater than 1, the model has not sufficiently converged [(Bürkner, 2017)](https://arxiv.org/abs/1705.11123). Models 5 and 6 were excluded from the comparison because of their poor convergence (as indicated by their 'Rhat' vaules). 
+
+For Model 4 (with 6 main effects and their 2,3, and 4-way interactions), the Rhat equalled 1, indicating good convergence. Leave-one-out (LOO) cross validation was used for model selection and identified Model 4 as the best fitting model, having the greater LOO value [(Vehtari, Gelman & Gabry, 2017)](https://link.springer.com/article/10.1007/s11222-016-9696-4). 
+
+## 4 Output Visualization 
+
+Based on the output of Model 4, we plotted the estimated possibility(EP) for effects that are significant. In each plot, the red colour dot (fair) represents the estimated mean for probability of fair allocation (with associated credible intervals), the green means and intervals (ufad) show the proportions of allocations which advantage the self, the details in blue (ufdis) represents allocations in which the child disadvantages her or himself.
+
+#### 4.1	Two-way interactions led by cost  
+```{R plot 4.1, eval=T, echo=F,fig.dim = c(12, 8)}
+## **EPcost** includes Two-way interactions led by cost. 
+print(pcost)
+```
+
+#### 4.2	interactions led by cost*competition  
+
+
+```{R plot 4.2, eval=T,echo=F,fig.dim = c(12, 12)}
+##**EPcompetition** includes cost X competition interactions that varied in different groups
+print(pcompetition)
+```
+
+#### 4.3	interactions led by cost*relation  
+
+```{R plot 4.3, eval=T,echo=F,fig.dim = c(12, 8)}
+##**EPrelation** includes cost X relation interactions that varied in different groups
+print(prelation)
+```
+
+#### 4.4	interactions led by cost*contextural factors   
+
+```{R plot 4.4, eval=T,echo=F,fig.dim = c(12, 8)}
+##**EP3_factor**includes interactions among cost with different factors.
+print(pcontext)
+```
+
+#### 4.5 interactions led by cost*structural factors 
+
+```{R plot 4.5, eval=T,echo=F,fig.dim = c(12, 12)}
+##**EP3_group**includes interactions among cost with different groups.
+print(pstructure)
+```
+
